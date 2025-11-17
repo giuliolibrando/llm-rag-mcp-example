@@ -94,29 +94,6 @@ docker exec -it ollama1 bash -lc "ollama pull qwen2.5:7b-instruct-q4_K_M"
 ```
 Replicas `ollama2` and `ollama3` will download models when first used.
 
-## Configure Nginx Proxy Manager (NPM)
-
-1. Access dashboard at `http://<VM_IP>:81`.
-2. Default credentials:  
-   - Email: `admin@example.com`  
-   - Password: `changeme` (you will be asked to reset).
-3. Add Proxy Hosts:
-   - **AnythingLLM**:  
-     - Domain: `llm.local`  
-     - Forward Host: `anythingllm`  
-     - Forward Port: `3001`
-   - **Qdrant**:  
-     - Domain: `qdrant.local`  
-     - Forward Host: `qdrant`  
-     - Forward Port: `6333`
-   - **Ollama Router** (optional):  
-     - Domain: `ollama.local`  
-     - Forward Host: `llm-router`  
-     - Forward Port: `80`
-4. Enable Websockets and "Block Common Exploits" in each Proxy Host.
-5. Configure SSL (either Let's Encrypt if domains are resolvable externally, or import your own certificates).
-
-If you only have the VM IP and no DNS, you can configure **Custom Locations** in NPM and access via `https://<IP>/ui`, `https://<IP>/qdrant`, etc.
 
 ## Using the System
 
