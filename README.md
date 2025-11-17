@@ -1,8 +1,12 @@
 # README
+This repository contains the code used in the Medium article  
+"Harness the Power of RAG and MCP: How On-Premise AI Manages Your Entire IT Infrastructure":  
+https://medium.com/p/5d204649aeee
+
 
 ## Overview
 
-This stack deploys a local LLM platform with RAG (Retrieval Augmented Generation). It consists of:
+This stack deploys a local LLM platform with RAG (Retrieval Augmented Generation) and MCP capalbilities. It consists of:
 
 - **AnythingLLM**: Web UI for multi-user chat
 - **Ollama (3 replicas)**: LLM inference (CPU-only in this setup)
