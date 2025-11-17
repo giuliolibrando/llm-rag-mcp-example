@@ -1,0 +1,182 @@
+# ============================
+# LLM + RAG (minimal) — docker-compose.yml
+#  - Nginx Proxy Manager (TLS + routing via UI) #optional
+#  - AnythingLLM (Web UI multi-user)
+#  - Qdrant (Vector DB for RAG)
+#  - Ollama (3 replicas) + Nginx router
+#  - RAG Ingestor 
+# ============================
+
+x-default-env: &default-env
+  TZ: Europe/Rome
+
+x-ollama-env: &ollama-env
+  <<: *default-env
+  OMP_NUM_THREADS: "10"
+  OLLAMA_NUM_PARALLEL: "2"
+  OLLAMA_MAX_LOADED_MODELS: "2"
+
+networks:
+  front:
+    driver: bridge
+  backend:
+    driver: bridge
+  data:
+    driver: bridge
+
+volumes:
+  ollama_models:
+  qdrant_storage:
+  anythingllm_data:
+  #traefik_letsencrypt: #optional
+
+services:
+  # -------------------------
+  # Reverse proxy — Nginx Proxy Manager (porta 80/443/81) #optional
+  # -------------------------
+  # npm:
+  #   image: jc21/nginx-proxy-manager:latest
+  #   container_name: npm
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #     - "81:81"    # dashboard admin web UI
+  #   volumes:
+  #     - ./npm/data:/data
+  #     - ./npm/letsencrypt:/etc/letsencrypt
+  #   environment:
+  #     <<: *default-env
+  #   networks: [front, backend]
+
+  # -------------------------
+  # Web UI (AnythingLLM)
+  # -------------------------
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    container_name: anythingllm
+    depends_on: [llm-router]
+    environment:
+      <<: *default-env
+      PROVIDER: OLLAMA
+      OLLAMA_BASE_PATH: http://llm-router:80
+      DEFAULT_MODEL: llama3.1:8b-instruct-q4_K_M
+      VECTOR_DATABASE: QDRANT
+      QDRANT_URL: http://qdrant:6333
+      JWT_SECRET: ${ALLM_JWT_SECRET}
+      STORAGE_DIR: /app/server/storage
+      OLLAMA_RESPONSE_TIMEOUT: "9999999"
+      #MCP_SERVERS: http://redmine-mcp-server:8000
+      # opzionali utili:
+      DISABLE_TELEMETRY: "true"
+      ALLOW_REGISTRATION: "true"
+    volumes:
+      - anythingllm_data:/app/server/storage
+      - ./plugins/anythingllm_mcp_servers.json:/app/server/storage/plugins/anythingllm_mcp_servers.json:ro
+    networks: [front, backend]
+
+  # -------------------------
+  # Vector DB (Qdrant)
+  # -------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    environment:
+      <<: *default-env
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks: [front, data]
+
+  # -------------------------
+  # LLM Inference — CPU (Ollama x3) + router
+  # -------------------------
+  ollama1:
+    image: ollama/ollama:latest
+    container_name: ollama1
+    environment: *ollama-env
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: "28"
+          memory: "80g"
+    networks: [backend]
+
+  ollama2:
+    image: ollama/ollama:latest
+    container_name: ollama2
+    environment: *ollama-env
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: "28"
+          memory: "80g"
+    networks: [backend]
+
+  ollama3:
+    image: ollama/ollama:latest
+    container_name: ollama3
+    environment: *ollama-env
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: "28"
+          memory: "80g"
+    networks: [backend]
+
+  llm-router:
+    image: nginx:alpine
+    container_name: llm-router
+    depends_on: [ollama1, ollama2, ollama3]
+    volumes:
+      - ./router/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [backend]
+
+  # -------------------------
+  # RAG — ETL Ingestor (placeholder)
+  # Monta ./rag-ingestor con gli script Python e un crontab interno
+  # -------------------------
+  rag-ingestor:
+    image: python:3.11-slim
+    container_name: rag-ingestor
+    depends_on: [anythingllm]
+    environment:
+      <<: *default-env
+      DEFAULT_SCHEDULE: ${DEFAULT_SCHEDULE:-} 
+      # Redmine
+      INSECURE_SSL: "true"
+      REDMINE_URL: ${REDMINE_URL:-}
+      REDMINE_TOKEN: ${REDMINE_TOKEN:-}
+      REDMINE_PROJECTS: ${REDMINE_PROJECTS:-}
+      REDMINE_SINCE_DAYS: ${REDMINE_SINCE_DAYS:-3650}
+      # Wiki.js
+      WIKIJS_URL: ${WIKIJS_URL:-}
+      WIKIJS_TOKEN: ${WIKIJS_TOKEN:-}
+      WIKIJS_SPACES: ${WIKIJS_SPACES:-}
+      PYTHONPATH: /app
+      # AnythingLLM
+      ANYL_BASE_URL: ${ANYL_BASE_URL:-http://anythingllm:3001/api/v1}
+      ANYL_API_KEY: ${ANYL_API_KEY:-}
+      ANYL_WORKSPACE: ${ANYL_WORKSPACE:-default}
+    volumes:
+      - ./rag-ingestor:/app
+    working_dir: /app
+    command: >
+      bash -lc "apt-get update &&
+                apt-get install -y cron wget gnupg unzip &&
+                wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg &&
+                echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main' >> /etc/apt/sources.list.d/google-chrome.list &&
+                apt-get update &&
+                apt-get install -y google-chrome-stable &&
+                wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip &&
+                unzip /tmp/chromedriver.zip -d /usr/local/bin/ &&
+                chmod +x /usr/local/bin/chromedriver &&
+                pip install -r requirements.txt &&
+                ./run_cron.sh"
+    networks: [backend]
+
