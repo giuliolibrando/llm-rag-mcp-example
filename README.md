@@ -1,7 +1,7 @@
 # README
 This repository contains the code used in the Medium article  
 "Harness the Power of RAG and MCP: How On-Premise AI Manages Your Entire IT Infrastructure":  
-https://medium.com/p/5d204649aeee
+https://medium.com/@giulio.librando/harness-the-power-of-rag-and-mcp-how-on-premise-ai-manages-your-entire-it-infrastructure-5d204649aeee
 
 
 ## Overview
